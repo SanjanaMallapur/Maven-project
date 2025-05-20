@@ -53,5 +53,4 @@ stages:
               azureSubscription: '$(azureSubscription)'
               appType: 'webApp'
               appName: '$(webAppName)'
-              package: '$(Pipeline.Workspace)/$(artifactName)/*.war'  # Or .jar or .zip
-
+              
