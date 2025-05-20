@@ -1,14 +1,57 @@
 trigger:
-- main  # or your branch
+  branches:
+    include:
+      - main  # change to your default branch
 
-pool:
-  vmImage: 'ubuntu-latest'  # Use Microsoft-hosted agents
+variables:
+  azureSubscription: 'AzureConnection'  # name of your service connection
+  webAppName: 'my-java-app-service'     # name of your Azure App Service
+  artifactName: 'drop'
 
-steps:
-- task: Maven@3
-  inputs:
-    mavenPomFile: 'pom.xml'
-    goals: 'clean install'
-    options: '-B'
-    publishJUnitResults: true
-    testResultsFiles: '**/surefire-reports/TEST-*.xml'
+stages:
+# === CI Stage ===
+- stage: Build
+  displayName: 'Build and Test'
+  jobs:
+  - job: BuildJob
+    displayName: 'Build Maven Project'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: Maven@3
+      inputs:
+        mavenPomFile: 'pom.xml'
+        goals: 'clean package'
+        publishJUnitResults: true
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: 'target'
+        ArtifactName: '$(artifactName)'
+
+# === CD Stage ===
+- stage: Deploy
+  displayName: 'Deploy to Azure App Service'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployJob
+    displayName: 'Deploy to Azure'
+    environment: 'production'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: $(artifactName)
+
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: '$(azureSubscription)'
+              appType: 'webApp'
+              appName: '$(webAppName)'
+              package: '$(Pipeline.Workspace)/$(artifactName)/*.war'  # Or .jar or .zip
+
